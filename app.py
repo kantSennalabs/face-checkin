@@ -27,7 +27,9 @@ from threading import Event
 from face_registeration import register_face
 import uuid
 import os
-
+from go_api import checkin_teamhero_go
+from rq import Queue
+from redis import Redis
 
 class face_db():
     def __init__(self):
@@ -93,7 +95,7 @@ class VideoThread(QThread):
     
     def read_frame(self):
         # capture from web cam
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture("rtsp://admin:Sennalabs_@192.168.0.63/Streaming/Channels/101")
         while self.playing:
             ret, cv_img = cap.read()
             if ret:
@@ -442,6 +444,11 @@ class App(QMainWindow):
         self.register_button.clicked.connect(self.registerPopup)
         self.member_button.clicked.connect(self.memberPopup)
         self.history_button.clicked.connect(self.historyPopup)
+
+        self.redis_conn = Redis()
+        self.q = Queue(connection=self.redis_conn)
+
+		
         # create the video capture thread
         self.current_frame = 0
         self.thread = VideoThread(self.current_frame)
@@ -497,16 +504,20 @@ class App(QMainWindow):
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
         image = cv2.resize(rgb_image, (1360, 850))
         self.current_frame = self.thread.get_current_frame()
-        if self.current_frame % 30 == 0:
+        if self.current_frame % 29 == 0:
             # print("self.known_face_names", self.known_face_names)
+            image = cv2.resize(image, (0,0), fx= 0.5, fy=0.5)
             image, self.found_faces, self.found_face_checkin, self.face_locations = self.find_face(image)
             for found_face, found_face_checkin,face_location in zip(self.found_faces, self.found_face_checkin, self.face_locations ):
+                print(date.today())
                 if found_face != 'Unknown':
                     self.check_in_df = pd.read_pickle("history/history.pkl")
                     if found_face not in self.check_in_df[self.check_in_df['date'] == date.today()]['name'].tolist():
                         top, right, bottom, left = face_location
                         img_uuid = str(uuid.uuid4().hex)
                         cv2.imwrite(f'history/capture/{img_uuid}.jpg', cv2.cvtColor(image[top:bottom, left:right], cv2.COLOR_BGR2RGB))
+                        job = self.q.enqueue(checkin_teamhero_go,found_face, f'history/capture/{img_uuid}.jpg', 'Natural')
+
                         self.check_in_df = self.check_in_df.append({'name':found_face , 'date':date.today(), 'time':datetime.now().strftime("%H:%M:%S"), 'check-in': found_face_checkin , 'img': img_uuid}, ignore_index=True)
                         button = DragButton(str(found_face))
                         if found_face_checkin == 'late':
@@ -537,11 +548,11 @@ class App(QMainWindow):
         for found_face, face_location in zip(self.found_faces, self.face_locations):
             top, right, bottom, left = face_location
             if found_face != 'Unknown':
-                image = self.draw_border(image, (left, top), (right, bottom), (155, 232, 105),4, 15, 10)
-                image = cv2.putText(image, found_face, (left+10,top+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (155, 232, 105), 2, cv2.LINE_AA )
+                image = self.draw_border(image, (left*2-20, top*2-20), (right*2+20, bottom*2+20), (155, 232, 105),4, 15, 10)
+                image = cv2.putText(image, found_face, (left*2-10,top*2+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (155, 232, 105), 2, cv2.LINE_AA )
             else:
-                image = self.draw_border(image, (left, top), (right, bottom), (255, 0, 105),4, 15, 10)
-                image = cv2.putText(image, found_face, (left+10,top+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 105), 2, cv2.LINE_AA )
+                image = self.draw_border(image, (left*2-20, top*2-20), (right*2+20, bottom*2+20), (255, 0, 105),4, 15, 10)
+                image = cv2.putText(image, found_face, (left*2-10,top*2+30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 105), 2, cv2.LINE_AA )
 
             
         h, w, ch = image.shape

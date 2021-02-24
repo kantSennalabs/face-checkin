@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=true
+Icon=/home/sennlabs-netagrill/Downloads/bg.png
+Exec=rq worker --with-scheduler --path /home/sennlabs-netagrill/Documents/face-checkin/
+Name=Worker
+
+

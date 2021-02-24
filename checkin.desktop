@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Terminal=true
+Icon=/home/sennlabs-netagrill/Downloads/checkin.png
+Exec=/bin/bash -c 'cd /home/sennlabs-netagrill/Documents/face-checkin/ && python3 /home/sennlabs-netagrill/Documents/face-checkin/app.py'
+Name=Checkin
+
+
